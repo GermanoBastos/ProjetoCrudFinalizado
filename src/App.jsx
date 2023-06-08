@@ -19,7 +19,7 @@ const db = firebase.firestore();
 
 const App = () => {
   const [formData, setFormData] = useState({
-    id: "",
+    id: "", // Adicione um campo "id" ao objeto formData
     name: "",
     email: "",
     phone: "",
@@ -38,25 +38,27 @@ const App = () => {
   const [cidades, setCidades] = useState([]);
 
   useEffect(() => {
+    const fetchUsers = () => {
+      db.collection("users")
+        .get()
+        .then((querySnapshot) => {
+          const fetchedUsers = querySnapshot.docs.map((doc) => doc.data());
+          setUsers(fetchedUsers);
+        })
+        .catch((error) => {
+          console.error("Erro ao buscar usuários:", error);
+        });
+    };
+
     const fetchEstados = async () => {
-      const response = await axios.get("https://servicodados.ibge.gov.br/api/v1/localidades/estados");
+      const response = await axios.get(
+        "https://servicodados.ibge.gov.br/api/v1/localidades/estados"
+      );
       setEstados(response.data);
     };
 
-    fetchEstados();
-  }, []);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      const snapshot = await db.collection("users").get();
-      const fetchedUsers = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setUsers(fetchedUsers);
-    };
-
     fetchUsers();
+    fetchEstados();
   }, []);
 
   const handleInputChange = (e) => {
@@ -78,12 +80,22 @@ const App = () => {
 
   const handleAddUser = () => {
     const newUser = { ...formData };
-
     db.collection("users")
       .add(newUser)
       .then((docRef) => {
-        setUsers([...users, { id: docRef.id, ...newUser }]);
-        resetFormData();
+        setUsers([...users, { ...newUser, id: docRef.id }]);
+        setFormData({
+          id: "",
+          name: "",
+          email: "",
+          phone: "",
+          cep: "",
+          address: "",
+          state: "",
+          city: "",
+          neighborhood: "",
+          registrationDate: ""
+        });
         setShowModal(false);
       })
       .catch((error) => {
@@ -93,10 +105,9 @@ const App = () => {
 
   const handleEditUser = () => {
     const updatedUser = { ...formData };
-
-    db.collection("users")
-      .doc(updatedUser.id)
-      .set(updatedUser)
+    const userRef = db.collection("users").doc(updatedUser.id);
+    userRef
+      .update(updatedUser)
       .then(() => {
         const updatedUsers = users.map((user) => {
           if (user.id === updatedUser.id) {
@@ -105,8 +116,18 @@ const App = () => {
           return user;
         });
         setUsers(updatedUsers);
-        resetFormData();
-        setEditIndex(-1);
+        setFormData({
+          id: "",
+          name: "",
+          email: "",
+          phone: "",
+          cep: "",
+          address: "",
+          state: "",
+          city: "",
+          neighborhood: "",
+          registrationDate: ""
+        });
         setShowModal(false);
       })
       .catch((error) => {
@@ -114,12 +135,12 @@ const App = () => {
       });
   };
 
-  const handleDeleteUser = (id) => {
+  const handleDeleteUser = (index, id) => {
     db.collection("users")
       .doc(id)
       .delete()
       .then(() => {
-        const updatedUsers = users.filter((user) => user.id !== id);
+        const updatedUsers = users.filter((_, i) => i !== index);
         setUsers(updatedUsers);
       })
       .catch((error) => {
@@ -127,9 +148,9 @@ const App = () => {
       });
   };
 
-  const handleEditButtonClick = (index) => {
+  const handleEditButtonClick = (index, id) => {
     const userToEdit = users[index];
-    setFormData(userToEdit);
+    setFormData({ ...userToEdit, id });
     setEditIndex(index);
     setShowModal(true);
   };
@@ -149,7 +170,9 @@ const App = () => {
 
     if (selectedState) {
       const fetchCidades = async () => {
-        const response = await axios.get(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState.id}/municipios`);
+        const response = await axios.get(
+          `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState.id}/municipios`
+        );
         setCidades(response.data);
       };
 
@@ -159,21 +182,6 @@ const App = () => {
     }
 
     handleInputChange(e);
-  };
-
-  const resetFormData = () => {
-    setFormData({
-      id: "",
-      name: "",
-      email: "",
-      phone: "",
-      cep: "",
-      address: "",
-      state: "",
-      city: "",
-      neighborhood: "",
-      registrationDate: ""
-    });
   };
 
   return (
@@ -249,10 +257,10 @@ const App = () => {
                 onChange={handleStateChange}
                 required
               >
-                <option value="">Selecione o estado</option>
+                <option value="">Selecione um estado</option>
                 {estados.map((estado) => (
-                  <option key={estado.id} value={estado.sigla}>
-                    {estado.sigla} - {estado.nome}
+                  <option key={estado.sigla} value={estado.sigla}>
+                    {estado.nome}
                   </option>
                 ))}
               </Form.Control>
@@ -266,7 +274,7 @@ const App = () => {
                 onChange={handleInputChange}
                 required
               >
-                <option value="">Selecione a cidade</option>
+                <option value="">Selecione uma cidade</option>
                 {cidades.map((cidade) => (
                   <option key={cidade.id} value={cidade.nome}>
                     {cidade.nome}
@@ -280,6 +288,16 @@ const App = () => {
                 type="text"
                 name="neighborhood"
                 value={formData.neighborhood}
+                onChange={handleInputChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group controlId="registrationDate">
+              <Form.Label>Data de Cadastro</Form.Label>
+              <Form.Control
+                type="date"
+                name="registrationDate"
+                value={formData.registrationDate}
                 onChange={handleInputChange}
                 required
               />
@@ -302,13 +320,13 @@ const App = () => {
             <th>Estado</th>
             <th>Cidade</th>
             <th>Bairro</th>
-            <th>Data de Registro</th>
+            <th>Data de Cadastro</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody>
           {users.map((user, index) => (
-            <tr key={user.id}>
+            <tr key={index}>
               <td>{user.name}</td>
               <td>{user.email}</td>
               <td>{user.phone}</td>
@@ -319,10 +337,16 @@ const App = () => {
               <td>{user.neighborhood}</td>
               <td>{user.registrationDate}</td>
               <td>
-                <Button variant="primary" onClick={() => handleEditButtonClick(index)}>
+                <Button
+                  variant="info"
+                  onClick={() => handleEditButtonClick(index, user.id)}
+                >
                   Editar
-                </Button>
-                <Button variant="danger" onClick={() => handleDeleteUser(user.id)}>
+                </Button>{" "}
+                <Button
+                  variant="danger"
+                  onClick={() => handleDeleteUser(index, user.id)}
+                >
                   Excluir
                 </Button>
               </td>
@@ -335,3 +359,5 @@ const App = () => {
 };
 
 export default App;
+
+
