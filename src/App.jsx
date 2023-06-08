@@ -4,8 +4,8 @@ import "firebase/compat/firestore";
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Form, Button, Table, Modal } from "react-bootstrap";
-// Inicialize o Firebase
 
+// Inicialize o Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDz3T-W25Ygmu2M7eBLmnndaqCNHC6uuqU",
   authDomain: "devops-eaf3d.firebaseapp.com",
@@ -17,9 +17,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-
 const App = () => {
   const [formData, setFormData] = useState({
+    id: "",
     name: "",
     email: "",
     phone: "",
@@ -46,6 +46,19 @@ const App = () => {
     fetchEstados();
   }, []);
 
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const snapshot = await db.collection("users").get();
+      const fetchedUsers = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setUsers(fetchedUsers);
+    };
+
+    fetchUsers();
+  }, []);
+
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -65,20 +78,12 @@ const App = () => {
 
   const handleAddUser = () => {
     const newUser = { ...formData };
-    db.collection("users").add(newUser)
-      .then(() => {
-        setUsers([...users, newUser]);
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          cep: "",
-          address: "",
-          state: "",
-          city: "",
-          neighborhood: "",
-          registrationDate: ""
-        });
+
+    db.collection("users")
+      .add(newUser)
+      .then((docRef) => {
+        setUsers([...users, { id: docRef.id, ...newUser }]);
+        resetFormData();
         setShowModal(false);
       })
       .catch((error) => {
@@ -87,27 +92,39 @@ const App = () => {
   };
 
   const handleEditUser = () => {
-    const updatedUsers = [...users];
-    updatedUsers[editIndex] = { ...formData };
-    setUsers(updatedUsers);
-    setEditIndex(-1);
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      cep: "",
-      address: "",
-      state: "",
-      city: "",
-      neighborhood: "",
-      registrationDate: ""
-    });
-    setShowModal(false);
+    const updatedUser = { ...formData };
+
+    db.collection("users")
+      .doc(updatedUser.id)
+      .set(updatedUser)
+      .then(() => {
+        const updatedUsers = users.map((user) => {
+          if (user.id === updatedUser.id) {
+            return updatedUser;
+          }
+          return user;
+        });
+        setUsers(updatedUsers);
+        resetFormData();
+        setEditIndex(-1);
+        setShowModal(false);
+      })
+      .catch((error) => {
+        console.error("Erro ao editar usuário:", error);
+      });
   };
 
-  const handleDeleteUser = (index) => {
-    const updatedUsers = users.filter((_, i) => i !== index);
-    setUsers(updatedUsers);
+  const handleDeleteUser = (id) => {
+    db.collection("users")
+      .doc(id)
+      .delete()
+      .then(() => {
+        const updatedUsers = users.filter((user) => user.id !== id);
+        setUsers(updatedUsers);
+      })
+      .catch((error) => {
+        console.error("Erro ao excluir usuário:", error);
+      });
   };
 
   const handleEditButtonClick = (index) => {
@@ -142,6 +159,21 @@ const App = () => {
     }
 
     handleInputChange(e);
+  };
+
+  const resetFormData = () => {
+    setFormData({
+      id: "",
+      name: "",
+      email: "",
+      phone: "",
+      cep: "",
+      address: "",
+      state: "",
+      city: "",
+      neighborhood: "",
+      registrationDate: ""
+    });
   };
 
   return (
@@ -217,10 +249,10 @@ const App = () => {
                 onChange={handleStateChange}
                 required
               >
-                <option value="">Selecione um estado</option>
+                <option value="">Selecione o estado</option>
                 {estados.map((estado) => (
-                  <option key={estado.sigla} value={estado.sigla}>
-                    {estado.nome}
+                  <option key={estado.id} value={estado.sigla}>
+                    {estado.sigla} - {estado.nome}
                   </option>
                 ))}
               </Form.Control>
@@ -234,7 +266,7 @@ const App = () => {
                 onChange={handleInputChange}
                 required
               >
-                <option value="">Selecione uma cidade</option>
+                <option value="">Selecione a cidade</option>
                 {cidades.map((cidade) => (
                   <option key={cidade.id} value={cidade.nome}>
                     {cidade.nome}
@@ -248,16 +280,6 @@ const App = () => {
                 type="text"
                 name="neighborhood"
                 value={formData.neighborhood}
-                onChange={handleInputChange}
-                required
-              />
-            </Form.Group>
-            <Form.Group controlId="registrationDate">
-              <Form.Label>Data de Cadastro</Form.Label>
-              <Form.Control
-                type="date"
-                name="registrationDate"
-                value={formData.registrationDate}
                 onChange={handleInputChange}
                 required
               />
@@ -280,13 +302,13 @@ const App = () => {
             <th>Estado</th>
             <th>Cidade</th>
             <th>Bairro</th>
-            <th>Data de Cadastro</th>
+            <th>Data de Registro</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody>
           {users.map((user, index) => (
-            <tr key={index}>
+            <tr key={user.id}>
               <td>{user.name}</td>
               <td>{user.email}</td>
               <td>{user.phone}</td>
@@ -297,16 +319,10 @@ const App = () => {
               <td>{user.neighborhood}</td>
               <td>{user.registrationDate}</td>
               <td>
-                <Button
-                  variant="info"
-                  onClick={() => handleEditButtonClick(index)}
-                >
+                <Button variant="primary" onClick={() => handleEditButtonClick(index)}>
                   Editar
-                </Button>{" "}
-                <Button
-                  variant="danger"
-                  onClick={() => handleDeleteUser(index)}
-                >
+                </Button>
+                <Button variant="danger" onClick={() => handleDeleteUser(user.id)}>
                   Excluir
                 </Button>
               </td>
