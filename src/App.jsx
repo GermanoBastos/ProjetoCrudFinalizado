@@ -126,8 +126,6 @@ const App = () => {
           registrationDate: ""
         });
         setShowModal(false);
-        setEditIndex(-1)
-        
       })
       .catch((error) => {
         console.error("Erro ao editar usuário:", error);
