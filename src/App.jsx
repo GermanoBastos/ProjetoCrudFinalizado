@@ -19,7 +19,6 @@ const db = firebase.firestore();
 
 const App = () => {
   const [formData, setFormData] = useState({
-    id: "", // Adicione um campo "id" ao objeto formData
     name: "",
     email: "",
     phone: "",
@@ -85,7 +84,6 @@ const App = () => {
       .then((docRef) => {
         setUsers([...users, { ...newUser, id: docRef.id }]);
         setFormData({
-          id: "",
           name: "",
           email: "",
           phone: "",
@@ -117,7 +115,6 @@ const App = () => {
         });
         setUsers(updatedUsers);
         setFormData({
-          id: "",
           name: "",
           email: "",
           phone: "",
@@ -129,6 +126,8 @@ const App = () => {
           registrationDate: ""
         });
         setShowModal(false);
+        setEditIndex(-1)
+        
       })
       .catch((error) => {
         console.error("Erro ao editar usuário:", error);
@@ -359,5 +358,3 @@ const App = () => {
 };
 
 export default App;
-
-
